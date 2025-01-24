@@ -8,7 +8,14 @@
 #define MAX_NUM_SUBSCRIBER (512)
 #define MAX_MEM_POOL (4 * 1024 * 1024)
 #define MAX_POLL_DATA_RETIRES 100000
-
+/*
+ * in this structure, when data is put we increment
+ * pub_count0 first followed by pub_count1. Everything
+ * happens in 64 bit unsigned integer and we assume that it will
+ * never rollover. 
+ * A consistent write is detected when pub_count0 and pub_count1 is
+ * same. 
+*/
 typedef struct {
     char name[MAX_TOPIC_NAME_LEN];
     uint8_t *queue;

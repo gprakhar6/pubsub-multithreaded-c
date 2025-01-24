@@ -6,15 +6,15 @@
 #define L(x,n) for(x=0;x<n;x++)
 #define LEN(x) sizeof(x)/sizeof(x[0])
 
-topic_t topics[MAX_NUM_TOPIC];
-uint16_t head_free_topic;
-uint16_t head_topic;
+static topic_t topics[MAX_NUM_TOPIC];
+static uint16_t head_free_topic;
+static uint16_t head_topic;
 
-subscriber_t subscribers[MAX_NUM_SUBSCRIBER];
-uint16_t head_free_subscriber;
+static subscriber_t subscribers[MAX_NUM_SUBSCRIBER];
+static uint16_t head_free_subscriber;
 
-uint8_t mem_pool[MAX_MEM_POOL];
-uint32_t pool_idx;
+static uint8_t mem_pool[MAX_MEM_POOL];
+static uint32_t pool_idx;
 
 void init_pubsub()
 {
@@ -205,14 +205,24 @@ static int check_data(void *d, subscriber_t *s, int pop_data)
 	    goto ret;
 	}
 	diff1 = t->pub_count1 - s->next_rd_count;
+	// nothing to read exit
 	if(diff1 == 0)
 	    goto ret;
+	// there is something to read and publisher has
+	// not overwritten the circular buffer
 	if(diff1 <= t->num_elem) {
 	    __sync_synchronize();
+	    // first copy the data
 	    memcpy(d, &TOPIC_DATA(t, s->tail_ptr), t->elem_sz);
 	    __sync_synchronize();
 	    diff0 = t->pub_count0 - s->next_rd_count;
+	    // check if still publisher has not overwritten
+	    // the data. if so reset the subscriber position
 	    if (diff1 <= t->num_elem) {
+	      // if diff1 == diff0, then we are good to read the
+	      // data, or if diff0 < num_of_elem in queue, then
+	      // we are reading and writing from different places
+	      // in queue so we are good to declare it as good read
 		if((diff1 == diff0) || (diff0 < t->num_elem)) {
 		    if(pop_data) {
 			s->tail_ptr++;
@@ -234,13 +244,22 @@ static int check_data(void *d, subscriber_t *s, int pop_data)
 	    switch(s->rst_pos) {
 	    case RESET_TO_TAIL_VALUE:
 		do {
-		    diff1 = t->pub_count1 - t->num_elem;
+		    diff1 = t->pub_count1;
 		    __sync_synchronize();
 		    s->tail_ptr = t->head_ptr;
 		    __sync_synchronize();
-		    diff0 = t->pub_count0 - t->num_elem;
+		    diff0 = t->pub_count0;
+		    // till we are able read a consistent
+		    // data structure, loop
 		} while(diff1 != diff0);
-		s->next_rd_count = diff1;
+		s->next_rd_count = diff1 - t->num_elem;
+		// reset pointer to tail position of the circular
+		// buffer. If till now number of published elements
+		// is less than total circular buffer, then
+		// reset tail_ptr to last data, else just head_ptr
+		// is sufficient
+		if (diff1 < t->num_elem)
+		  s->tail_ptr = s->tail_ptr - diff1;
 		break;
 	    case RESET_TO_HEAD_VALUE:
 		do {

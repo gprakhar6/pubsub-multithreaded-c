@@ -28,8 +28,8 @@ void* poller(void *arg)
     while(1) {
 	if(!(fail = poll_data(&data, s))) {
 	    if(data < pdata) {
-		printf("BAD DATA fail = %d %llu %llu\n", fail, data, pdata);
-		printf("s->next = %llu s->tail=%lu\n", s->next_rd_count, s->tail_ptr);
+		printf("BAD DATA fail = %d %lu %lu\n", fail, data, pdata);
+		printf("s->next = %lu s->tail=%u\n", s->next_rd_count, s->tail_ptr);
 		exit(0);
 	    }
 	    pdata = data;
@@ -46,7 +46,7 @@ int main()
     pthread_t tid1,tid2;
     init_pubsub();
     t = allocate_topic("data", sizeof(d), 1000);
-    s = allocate_subscriber("data", RESET_TO_LAST_VALUE);
+    s = allocate_subscriber("data", RESET_TO_TAIL_VALUE);
 
     pthread_create(&tid1, NULL, publisher, NULL);
     pthread_create(&tid1, NULL, poller, NULL);
